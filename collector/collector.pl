@@ -1,36 +1,39 @@
 #!/usr/bin/perl
+
 use strict;
 use warnings;
 use Net::Telnet;
 use DBI;
+use JSON;
+use lib '/var/www/html/dxcagg/lib/';
+use dxcagg::logging; 
 # use lib '/var/www/html/dxcagg/collector/perl/';
 # require './lib/database.pl';
-use lib '/var/www/html/dxcagg/collector/perl/';
+# use lib '/var/www/html/dxcagg/collector/perl/';
 # require './lib/database.pl';
 # require './lib/database.pl';
+
+
 
 # Main entry point
 my ($dxc_type, $dxc_hostname, $dxc_port, $dxc_expect_prompt, $dxc_my_call) = @ARGV;
 my $telnet;
 my $connDB;
+my $config;
 # my $dbh;
 
+sub read_config {
+    my $config_file = "../config/main.json";
+    open my $fh, "<", $config_file or die "Cannot open '$config_file': $!";
+    local $/;
+    my $json_text = <$fh>;
+    close $fh;
+
+    return decode_json($json_text);
+}
+
 sub main {
-    # print "Collector stub running...\n";
-    # print "@ARGV\n";
-    # my $dxc_type = @ARGV[0] || 'AR';
-    # my $dxc_hostname = "ARGV[1]" || 'w3lpl.net';
-    # my $dxc_port = "ARGV[2]" || 7373;
-    # my $dxc_expect_prompt = "ARGV[3]" || 'Please enter your call';
-    # my $dxc_my_call = "ARGV[4]" || 'dl4oce-1 ';
-    # print "Collector type: $dxc_type\n";
-    # print "Hostname: $dxc_hostname\n";
-    # print "Port: $dxc_port\n";
-    # print "Expect prompt: $dxc_expect_prompt\n";
-    # print "My call: $dxc_my_call\n";    
-    # TODO: Implement collector logic here
-    # print time();
-    # exit;
+    $config = read_config();
     connect_to_database();
     connect_to_dxc();
     while (1) {
@@ -41,7 +44,7 @@ sub main {
         my $line = $telnet->getline();
         if ($line) {
             chomp $line;
-            print "$line\n";
+            &dxcagg::logging::log_message("###### Spot received #####", "info");
             # DX de RU9CZD-#:  21057.8  DK2VM        CW 5 dB 22 WPM CQ              1114Z
             my ($spotter, $qrg, $call, $comment, $utc) = $line =~ m/^DX de\s*(\S*)-#:\s*(\S*)\s*(\S*)\s*(.*)(\d{4})Z$/;
             if( $spotter && $qrg && $call && $utc) {
@@ -109,12 +112,18 @@ sub main {
                     #elsif (($qrg>28070) and ($qrg<=29200)) {$mode="USB"; }
                     #elsif (($qrg>29200) and ($qrg<=29700)) {$mode="FM"; }
                 }
-                print "Spotter: $spotter, QRG: $qrg, Call: $call, Comment: $comment, UTC: $utc, Band: $band\n";
+                # print "Spotter: $spotter, QRG: $qrg, Call: $call, Comment: $comment, UTC: $utc, Band: $band\n";
+                &dxcagg::logging::log_message("Spotter: $spotter, QRG: $qrg, Call: $call, Comment: $comment, UTC: $utc, Band: $band", "info");
                 # dupe-check
                 my $sql = "SELECT COUNT(*) num FROM spot WHERE dx_call='$call' AND utc='$utc' AND band='$band';";
+                # print "SQL: $sql\n";
+                &dxcagg::logging::log_message("SQL: $sql", "info");
                 my $sth = $connDB->prepare($sql);
                 $sth->execute();
                 my @row = $sth->fetchrow_array;
+                my $rows = $row[0];
+                # print "rows: $rows\n";
+                &dxcagg::logging::log_message("rows: $rows", "info");
                 # only store if not a dupe
                 if ($row[0] eq 0){ 
                     my $comment = "";
@@ -187,16 +196,17 @@ sub main {
                     $sql  .= "mode,  ms, tropo, special_event, split, beacon, source) ";
                     $sql  .= "VALUES ('$call', '$utc', $qrg, '$spotter', $suffix_p, $suffix_m, $suffix_mm, $suffix_am, $suffix_qrp, $suffix_a, $suffix_lh, '$band', '$sota_assoc', '$sota_region', '$sota_number', ";
                     $sql  .= "'$dok_district', '$dok_number', '$iota_continent', '$iota_number', '$qsl_manager', '$rda', '$comment', '$mode', $ms, $tropo, $special_event, $split, $beacon, '$dxc_hostname');";
-                    print "SQL: $sql\n";
-
-
+                    # print "SQL: $sql\n";
+                    &dxcagg::logging::log_message("SQL: $sql", "info");
                     #print MYOUTFILE "$sql\n";
                     $sth = $connDB->prepare($sql);
                     $sth->execute();
-                } # fi NO DUPE
+                } else {  
+                    # print "Dupe found, not storing: $call $utc $band\n";
+                    &dxcagg::logging::log_message("Dupe found, not storing: $call $utc $band", "info");
 
+                }
             }
-
         # } else {
         #     print "No data received, waiting...\n";
         #     sleep(1);  # Sleep for a while before trying again
@@ -205,15 +215,14 @@ sub main {
 }
 
 sub connect_to_database() {
-    # ToDo: get from config file!!
-    # my $dsn = "DBI:mysql:database=dxc_agg;host=localhost";
-    # my $username = "root";  # Replace with your database username
-    # my $password = "baier123";  # Replace with your database password
-    $connDB = DBI->connect("dbi:mysql:database=dxc_agg;host=localhost", "dxc_agg", "baier123", { RaiseError => 1, PrintError => 0 });
+    $connDB = DBI->connect($config->{database_dsn}, $config->{database_user}, $config->{database_password}, { RaiseError => 1, PrintError => 0 });
+    # $connDB = DBI->connect("dbi:mysql:database=dxc_agg;host=localhost", "dxc_agg", "baier123", { RaiseError => 1, PrintError => 0 });
     if ($connDB) {
-        print "Connected to the database successfully.\n";
+        # print "Connected to the database successfully.\n";
+        &dxcagg::logging::log_message("Connected to the database successfully", "info");
         # $connDB = $dbh;  # Store the database handle in a global variable
     } else {
+        &dxcagg::logging::log_message("Could not connect to the database: $DBI::errstr", "info");
         die "Could not connect to the database: $DBI::errstr";
     }
     # print "Connected to the database successfully.\n";

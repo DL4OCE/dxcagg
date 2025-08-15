@@ -1,0 +1,11 @@
+{
+    "logfile": "/var/log/dxcagg/collector.log",
+    "loglevel": "debug",
+    "logrotate": true,
+    "logrotate_max_size": "10M",
+    "database_dsn": "dbi:mysql:database=dxc_agg;host=localhost",
+    "database_user": "dxc_agg",
+    "database_password": "baier123",
+    "dxc_hostname": "localhost",
+    "spot_timeout_secs": 5
+}
