@@ -2,12 +2,11 @@
 
 # create housekeeping service definition file
 eval "$(jq -r '. | to_entries | .[] | .key + "=" + (.value | @sh)' < ../config/main.json)"
-# printf "Housekeeping timeout: %s seconds\n" "$spot_timeout_secs"
-# exit 0
 
 # service_file="/etc/systemd/system/dxcagg_housekeeping.service"
-rm -f /etc/systemd/system/dxcagg_housekeeping.service
-cat > /etc/systemd/system/dxcagg_housekeeping.service <<EOF
+service_file=dxcagg_housekeeping.service
+rm -f /etc/systemd/system/${service_file}
+cat > /etc/systemd/system/${service_file} <<EOF
 [Unit]
 Description=DXC aggregator database housekeeping
 After=network.target
@@ -22,11 +21,11 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
 
-    systemctl stop dxcagg_housekeeping.service
-    systemctl disable dxcagg_housekeeping.service
-    systemctl status dxcagg_housekeeping.service
-    systemctl enable dxcagg_housekeeping.service
-    systemctl status dxcagg_housekeeping.service
+    systemctl stop ${service_file}
+    systemctl disable ${service_file}
+    systemctl status ${service_file}
+    systemctl enable ${service_file}
+    systemctl status ${service_file}
 
 # remove old collector service definition files
 for file in /etc/systemd/system/dxcagg_collector_*; do

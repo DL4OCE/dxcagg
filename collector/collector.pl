@@ -7,20 +7,11 @@ use DBI;
 use JSON;
 use lib '/var/www/html/dxcagg/lib/';
 use dxcagg::logging; 
-# use lib '/var/www/html/dxcagg/collector/perl/';
-# require './lib/database.pl';
-# use lib '/var/www/html/dxcagg/collector/perl/';
-# require './lib/database.pl';
-# require './lib/database.pl';
 
-
-
-# Main entry point
 my ($dxc_type, $dxc_hostname, $dxc_port, $dxc_expect_prompt, $dxc_my_call) = @ARGV;
 my $telnet;
 my $connDB;
 my $config;
-# my $dbh;
 
 sub read_config {
     my $config_file = "../config/main.json";
@@ -196,57 +187,32 @@ sub main {
                     $sql  .= "mode,  ms, tropo, special_event, split, beacon, source) ";
                     $sql  .= "VALUES ('$call', '$utc', $qrg, '$spotter', $suffix_p, $suffix_m, $suffix_mm, $suffix_am, $suffix_qrp, $suffix_a, $suffix_lh, '$band', '$sota_assoc', '$sota_region', '$sota_number', ";
                     $sql  .= "'$dok_district', '$dok_number', '$iota_continent', '$iota_number', '$qsl_manager', '$rda', '$comment', '$mode', $ms, $tropo, $special_event, $split, $beacon, '$dxc_hostname');";
-                    # print "SQL: $sql\n";
                     &dxcagg::logging::log_message("SQL: $sql", "info");
-                    #print MYOUTFILE "$sql\n";
                     $sth = $connDB->prepare($sql);
                     $sth->execute();
                 } else {  
-                    # print "Dupe found, not storing: $call $utc $band\n";
                     &dxcagg::logging::log_message("Dupe found, not storing: $call $utc $band", "info");
-
                 }
             }
-        # } else {
-        #     print "No data received, waiting...\n";
-        #     sleep(1);  # Sleep for a while before trying again
         }
     }
 }
 
 sub connect_to_database() {
     $connDB = DBI->connect($config->{database_dsn}, $config->{database_user}, $config->{database_password}, { RaiseError => 1, PrintError => 0 });
-    # $connDB = DBI->connect("dbi:mysql:database=dxc_agg;host=localhost", "dxc_agg", "baier123", { RaiseError => 1, PrintError => 0 });
     if ($connDB) {
-        # print "Connected to the database successfully.\n";
         &dxcagg::logging::log_message("Connected to the database successfully", "info");
-        # $connDB = $dbh;  # Store the database handle in a global variable
     } else {
         &dxcagg::logging::log_message("Could not connect to the database: $DBI::errstr", "info");
         die "Could not connect to the database: $DBI::errstr";
     }
-    # print "Connected to the database successfully.\n";
-    # exit;
-
 }
 
 sub connect_to_dxc() {
-    # my ($dxc_type, $dxc_hostname, $dxc_port, $dxc_expect_prompt, $dxc_my_call) = @_;
-    # connect to DXC
-    # print "$dxc_expect_prompt\n";
-    # exit;
-    # print ($dxc_hostname, $dxc_port, $dxc_expect_prompt, $dxc_my_call);
-
     $telnet = new Net::Telnet ( Timeout=>60, Telnetmode=>0, Errmode=>'die', Port=>$dxc_port, Host=>$dxc_hostname);
     $telnet->open();
     $telnet->waitfor("/$dxc_expect_prompt: \/i") or die "no login prompt: ", $telnet->lastline;
-    #$telnet->waitfor("/Please enter your call:/i") or die "no login prompt: ", $telnet->lastline;
     $telnet->print($dxc_my_call);
-    # # Implement connection logic to the DXC
-    # # This is a stub function for now
-    # print "Connecting to DXC: $dxc_hostname on port $dxc_port\n";
-    # print "Expecting prompt: $dxc_expect_prompt\n";
-    # print "My call sign: $dxc_my_call\n";
 }
 
 main();
